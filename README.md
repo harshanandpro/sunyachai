@@ -1,16 +1,71 @@
-# React + Vite
+# Bridge the Gap
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Different perspectives. One bridge.
 
-Currently, two official plugins are available:
+A multiplayer pixel-art social debate game. Players with opposing views discuss
+topics and cooperate to build a bridge between two islands.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Built with **React + Vite** (frontend), **Phaser** (2D game world),
+**Node.js + Express + Socket.IO** (backend / real-time multiplayer).
 
-## React Compiler
+## Requirements
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js 20+ (tested on v24)
+- npm 11+
 
-## Expanding the Oxlint configuration
+## Setup
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+npm install
+```
+
+## Run
+
+Terminal 1 — backend (http://localhost:3001):
+
+```bash
+npm run server
+```
+
+Health check: `curl http://localhost:3001/health`
+
+Terminal 2 — frontend (http://localhost:5173):
+
+```bash
+npm run dev
+```
+
+Open http://localhost:5173, enter a name, and press **ENTER WORLD**.
+
+## Scripts
+
+| Command         | What it does                     |
+| --------------- | -------------------------------- |
+| `npm run dev`   | Start Vite frontend with HMR     |
+| `npm run server`| Start Express + Socket.IO server |
+| `npm run build` | Production build into `dist/`    |
+| `npm run lint`  | Run oxlint                       |
+
+## Project structure
+
+```
+server/            Express + Socket.IO backend (health endpoint, realtime hub)
+src/
+  pages/           React pages (landing page)
+  components/      Reusable React components (pixel-art scene)
+  phaser/          Phaser game init + scenes
+  net/             Socket.IO client
+  App.css, index.css
+public/            Static assets
+```
+
+## Configuration
+
+The server URL for the Socket.IO client defaults to `http://localhost:3001`
+and can be overridden with the `VITE_SERVER_URL` environment variable.
+No secrets are committed; put environment files in `.env*` (gitignored).
+
+## Roadmap (not built yet)
+
+Multiplayer lobby, movement, matchmaking, debate mechanics, bridge building,
+profiles, database/auth — added incrementally in later steps.
