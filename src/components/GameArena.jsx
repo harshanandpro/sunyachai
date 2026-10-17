@@ -98,6 +98,11 @@ export default function GameArena({
   const [inputText, setInputText] = useState('')
   const [feedback, setFeedback] = useState('')
   const [transcript, setTranscript] = useState(() => (isControlled ? [] : MOCK_INITIAL_TRANSCRIPT))
+  // Per-player tallies (controlled mode): the server swaps roles after every
+  // decision, so the speaker in the state AFTER a decision is the player who
+  // just decided — planks only rise when that decision was an agree.
+  const [myAgrees, setMyAgrees] = useState(0)
+  const [theirAgrees, setTheirAgrees] = useState(0)
 
   // Derive resolved state from props or fallback to local mock state
   const topic = game?.motion ?? propTopic ?? DEFAULT_TOPIC
@@ -168,6 +173,11 @@ export default function GameArena({
             : entry
         )
       )
+    }
+
+    if (isControlled && game && planks > prevPlanksRef.current) {
+      if (game.speakerId === game.you?.id) setMyAgrees((c) => c + 1)
+      else setTheirAgrees((c) => c + 1)
     }
 
     prevPlanksRef.current = planks
@@ -277,8 +287,12 @@ export default function GameArena({
   }
 
   // Calculate player avatar X position along the bridge progression (0 to 10)
-  const p1X = isWon ? 292 : Math.round(100 + planks * 19.2)
-  const p2X = isWon ? 328 : Math.round(520 - planks * 19.2)
+  // Only advances over planks THIS player personally agreed to; disagreeing
+  // player stays grounded on their own island.
+  const p1Steps = isControlled ? myAgrees : planks
+  const p2Steps = isControlled ? theirAgrees : planks
+  const p1X = isWon ? 292 : Math.round(100 + p1Steps * 19.2)
+  const p2X = isWon ? 328 : Math.round(520 - p2Steps * 19.2)
 
   // Active status for HUD cards (speaker during argue, responder during decide)
   const p1IsActive = phase === 'argue' ? isSpeaker : phase === 'decide' ? isResponder : false
@@ -453,7 +467,10 @@ export default function GameArena({
           {/* 10 Visible Bridge Plank Slots across the gap (x: 162..478) */}
           {Array.from({ length: TOTAL_PLANKS }).map((_, i) => {
             const slotX = 162 + i * 32
-            const isBuilt = i < planks
+            // your planks build from the left island, partner's from the right
+            const isBuilt = isControlled
+              ? i < myAgrees || i >= TOTAL_PLANKS - theirAgrees
+              : i < planks
 
             return (
               <g key={i}>
