@@ -152,7 +152,9 @@ export default class LobbyScene extends Phaser.Scene {
   }
 
   update(_, delta) {
-    const me = this.avatars.get(this.myId)
+    // socket.id is undefined at preBoot (connect is async) — resolve lazily
+    if (!this.myId && this.socket?.id) this.myId = this.socket.id
+    const me = this.myId ? this.avatars.get(this.myId) : null
     if (!me) return
 
     let dx = 0

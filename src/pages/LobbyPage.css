@@ -1,0 +1,491 @@
+/* LobbyPage CSS — "Dusk Bridge" pixel revamp
+   Everything is scoped under .lobby-page so it can't leak into the landing
+   page or the arena, and it out-ranks the old global lobby rules. */
+
+.lobby-page {
+  --lp-panel: #0c1531;
+  --lp-panel-2: #101c42;
+  --lp-well: #060a19;
+  --lp-edge: #2a3f7a;
+  --lp-cyan: var(--cyan, #7fe7ff);
+  --lp-blue: var(--blue, #2a97e0);
+  --lp-warm: var(--warm, #e0a35c);
+  --lp-green: var(--green, #3fae6a);
+  --lp-red: #d64545;
+  --lp-text: var(--text, #dbe6ff);
+  --lp-dim: var(--text-dim, #8a9cc9);
+  --lp-pixel: var(--pixel, 'Press Start 2P', monospace);
+  --lp-mono: var(--mono, ui-monospace, monospace);
+
+  position: relative;
+  isolation: isolate;
+  color: var(--lp-text);
+  font-family: var(--lp-mono);
+}
+
+/* Night-sky backdrop: gradient, static stars, and a strip of pixel water */
+.lobby-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 18%, #c9d9ff 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 12%, #8fb7ff 0 1px, transparent 2px),
+    radial-gradient(circle at 44% 30%, #7fe7ff 0 1px, transparent 2px),
+    radial-gradient(circle at 90% 40%, #c9d9ff 0 1px, transparent 2px),
+    radial-gradient(circle at 24% 52%, #ffc285 0 1px, transparent 2px),
+    repeating-linear-gradient(180deg, #113a6b 0 4px, #0f3260 4px 8px) bottom / 100% 9vh no-repeat,
+    linear-gradient(180deg, #070d24 0%, #0f1a40 55%, #1f3468 100%);
+}
+
+/* ───── top bar ───── */
+.lobby-page .topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  background:
+    repeating-linear-gradient(90deg, rgba(127, 231, 255, 0.05) 0 2px, transparent 2px 8px),
+    linear-gradient(180deg, var(--lp-panel-2), var(--lp-panel));
+  box-shadow: 0 4px 0 0 var(--lp-edge), 0 8px 0 0 rgba(0, 0, 0, 0.45);
+}
+
+.lobby-page .logo-dot {
+  width: 10px;
+  height: 10px;
+  margin-right: 10px;
+  display: inline-block;
+  background: var(--lp-warm);
+  box-shadow: 10px 0 0 var(--lp-blue), 0 0 10px rgba(224, 163, 92, 0.7);
+  animation: lpLogo 1.6s steps(1) infinite;
+}
+
+@keyframes lpLogo {
+  50% {
+    background: var(--lp-cyan);
+    box-shadow: 10px 0 0 var(--lp-warm), 0 0 10px rgba(127, 231, 255, 0.7);
+  }
+}
+
+.lobby-page .logo-text {
+  font-family: var(--lp-pixel);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--lp-cyan);
+  text-shadow: 2px 2px 0 #000, 0 0 12px rgba(127, 231, 255, 0.45);
+}
+
+/* ───── page body ───── */
+.lobby-page .lobby {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 34px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  box-sizing: border-box;
+}
+
+.lobby-page .lobby-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby-page .lobby-title {
+  margin: 0;
+  font-family: var(--lp-pixel);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 4px;
+  color: var(--lp-warm);
+  text-shadow: 3px 3px 0 #000, 0 0 20px rgba(224, 163, 92, 0.5);
+}
+
+.lobby-page .lobby-title::after {
+  content: '';
+  display: block;
+  width: 96px;
+  height: 6px;
+  margin-top: 14px;
+  background: repeating-linear-gradient(90deg, var(--lp-warm) 0 12px, var(--lp-blue) 12px 24px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+.lobby-page .lobby-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--lp-dim);
+}
+
+.lobby-page .lobby-you {
+  display: inline-block;
+  padding: 2px 8px;
+  font-family: var(--lp-pixel);
+  font-size: 10px;
+  color: var(--lp-cyan);
+  background: rgba(127, 231, 255, 0.12);
+  box-shadow: 0 0 0 2px var(--lp-blue);
+}
+
+.lobby-page .form-msg.error {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #ffadad;
+  background: rgba(214, 69, 69, 0.14);
+  box-shadow: inset 4px 0 0 0 var(--lp-red);
+}
+
+/* ───── layout ───── */
+.lobby-page .lobby-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 32px;
+  align-items: start;
+}
+
+/* ───── plaza (Phaser canvas host) ───── */
+.lobby-page .plaza {
+  position: relative;
+  min-height: 240px;
+  overflow: hidden;
+  background: #0a122c;
+  box-shadow:
+    0 0 0 4px #1a2447,
+    0 0 0 8px var(--lp-well),
+    0 0 0 10px var(--lp-edge),
+    10px 14px 0 8px rgba(0, 0, 0, 0.5),
+    0 0 40px 8px rgba(42, 151, 224, 0.15);
+}
+
+.lobby-page .plaza canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+/* CRT scanlines + vignette (static: no repaint cost) */
+.lobby-page .plaza::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 58%, rgba(2, 4, 14, 0.55) 100%);
+}
+
+/* Shown only until Phaser appends its canvas — replaces the old state flag */
+.lobby-page .plaza:empty::before {
+  content: 'LOADING PLAZA...';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--lp-pixel);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--lp-dim);
+  animation: lpBlink 1s steps(1) infinite;
+}
+
+@keyframes lpBlink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ───── side panel ───── */
+.lobby-page .lobby-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 18px 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0, rgba(255, 255, 255, 0) 38%),
+    var(--lp-panel);
+  box-shadow:
+    0 -3px 0 0 var(--lp-edge),
+    0 3px 0 0 var(--lp-edge),
+    -3px 0 0 0 var(--lp-edge),
+    3px 0 0 0 var(--lp-edge),
+    inset 0 3px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -3px 0 0 rgba(0, 0, 0, 0.35),
+    6px 9px 0 0 rgba(0, 0, 0, 0.45);
+}
+
+.lobby-page .lobby-count {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--lp-pixel);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--lp-cyan);
+  text-shadow: 2px 2px 0 #000;
+}
+
+.lobby-page .lobby-badge {
+  min-width: 26px;
+  padding: 5px 8px;
+  text-align: center;
+  font-size: 10px;
+  color: #060a19;
+  text-shadow: none;
+  background: var(--lp-warm);
+  box-shadow: 0 0 0 2px #000, inset 0 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.lobby-page .lobby-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--lp-well);
+  box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.6), 0 0 0 2px #1a2447;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lp-edge) var(--lp-well);
+}
+
+.lobby-page .lobby-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lobby-page .lobby-list::-webkit-scrollbar-track {
+  background: var(--lp-well);
+}
+
+.lobby-page .lobby-list::-webkit-scrollbar-thumb {
+  background: var(--lp-edge);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.2);
+}
+
+.lobby-page .lobby-list li {
+  --pip: var(--lp-cyan);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--lp-text);
+  background: #0a1330;
+  box-shadow: inset 4px 0 0 0 var(--pip), 0 0 0 2px #101a38;
+  overflow-wrap: anywhere;
+  animation: lpItemIn 0.25s steps(4);
+}
+
+.lobby-page .lobby-list li:nth-child(4n + 2) {
+  --pip: var(--lp-warm);
+}
+.lobby-page .lobby-list li:nth-child(4n + 3) {
+  --pip: #79e39b;
+}
+.lobby-page .lobby-list li:nth-child(4n) {
+  --pip: #ff8fb8;
+}
+
+@keyframes lpItemIn {
+  0% {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.lobby-page .lobby-pip {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  background: var(--pip);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.3), inset 2px 2px 0 rgba(255, 255, 255, 0.45),
+    0 0 8px var(--pip);
+}
+
+/* you always float to the top of the list */
+.lobby-page .lobby-list li.is-you {
+  order: -1;
+  --pip: var(--lp-cyan);
+  color: #fff;
+  background: linear-gradient(90deg, rgba(127, 231, 255, 0.14), #0a1330 70%);
+  box-shadow: inset 4px 0 0 0 var(--lp-cyan), 0 0 0 2px var(--lp-blue);
+}
+
+.lobby-page .you-tag {
+  margin-left: auto;
+  flex: none;
+  padding: 3px 6px;
+  font-family: var(--lp-pixel);
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: #060a19;
+  background: var(--lp-cyan);
+}
+
+.lobby-page .lobby-wait {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lp-dim);
+}
+
+.lobby-page .lobby-wait::before {
+  content: '> ';
+  font-family: var(--lp-pixel);
+  color: var(--lp-warm);
+}
+
+.lobby-page .lobby-wait.is-queued {
+  color: var(--lp-cyan);
+}
+
+.lobby-page .lobby-wait.is-queued::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 12px;
+  margin-left: 6px;
+  vertical-align: -2px;
+  background: var(--lp-cyan);
+  animation: lpBlink 0.8s steps(1) infinite;
+}
+
+/* ───── buttons: chunky 3D pixel keys ───── */
+.lobby-page .lobby-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-bottom: 8px;
+}
+
+.lobby-page .enter-btn,
+.lobby-page .leave-btn {
+  --ledge: #000;
+  position: relative;
+  width: 100%;
+  padding: 15px 18px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--lp-pixel);
+  font-size: 11px;
+  letter-spacing: 1px;
+  box-shadow:
+    0 -3px 0 0 #000,
+    -3px 0 0 0 #000,
+    3px 0 0 0 #000,
+    0 6px 0 0 var(--ledge),
+    0 9px 0 0 #000,
+    inset 0 3px 0 0 rgba(255, 255, 255, 0.3),
+    inset 0 -4px 0 0 rgba(0, 0, 0, 0.22);
+  transition: transform 0.06s, filter 0.15s;
+}
+
+.lobby-page .enter-btn {
+  --ledge: #a86a30;
+  background: var(--lp-warm);
+  color: #060a19;
+}
+
+.lobby-page .leave-btn {
+  --ledge: #5c1818;
+  background: #2a0f16;
+  color: #ff9d9d;
+  font-size: 9px;
+  padding: 12px 18px;
+}
+
+.lobby-page .enter-btn:hover:not(:disabled),
+.lobby-page .leave-btn:hover {
+  filter: brightness(1.15);
+}
+
+.lobby-page .enter-btn:active:not(:disabled),
+.lobby-page .leave-btn:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 -3px 0 0 #000,
+    -3px 0 0 0 #000,
+    3px 0 0 0 #000,
+    0 2px 0 0 var(--ledge),
+    0 5px 0 0 #000,
+    inset 0 3px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -4px 0 0 rgba(0, 0, 0, 0.22);
+}
+
+.lobby-page .enter-btn:disabled {
+  --ledge: #17305c;
+  background: #2a4f8f;
+  color: #cfe0ff;
+  cursor: progress;
+  animation: lpQueued 1.2s steps(2) infinite;
+}
+
+@keyframes lpQueued {
+  50% {
+    filter: brightness(1.25);
+  }
+}
+
+.lobby-page .enter-btn:focus-visible,
+.lobby-page .leave-btn:focus-visible {
+  outline: 3px dashed var(--lp-cyan);
+  outline-offset: 6px;
+}
+
+/* ───── footer ───── */
+.lobby-page .footer {
+  padding: 22px 16px 28px;
+  text-align: center;
+  font-family: var(--lp-pixel);
+  font-size: 8px;
+  line-height: 1.8;
+  letter-spacing: 1px;
+  color: var(--lp-dim);
+}
+
+/* ───── responsive ───── */
+@media (max-width: 860px) {
+  .lobby-page .lobby-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .lobby-page .lobby {
+    padding: 24px 14px 20px;
+  }
+
+  .lobby-page .lobby-title {
+    font-size: 22px;
+  }
+
+  .lobby-page .lobby-list {
+    max-height: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-page *,
+  .lobby-page *::before,
+  .lobby-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

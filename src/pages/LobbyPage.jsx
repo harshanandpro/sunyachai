@@ -1,13 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { createLobbyGame } from '../phaser/game.js'
+import './LobbyPage.css'
+
+// Memoised so toggling "queued" (or any parent re-render with the same
+// players) doesn't rebuild the whole list.
+const PlayerList = memo(function PlayerList({ players, username }) {
+  return (
+    <ul className="lobby-list" aria-label="Players in the lobby">
+      {players.map((player) => {
+        const isYou = player.name === username
+        return (
+          <li key={player.id} className={isYou ? 'is-you' : undefined}>
+            <span className="lobby-pip" aria-hidden="true" />
+            {player.name}
+            {isYou && <span className="you-tag">YOU</span>}
+          </li>
+        )
+      })}
+    </ul>
+  )
+})
 
 export default function LobbyPage({ socket, username, players, serverError, queued, onPlay, onLeave }) {
   const canvasHostRef = useRef(null)
-  const [game, setGame] = useState(null)
 
   useEffect(() => {
-    const g = createLobbyGame(canvasHostRef.current, socket, socket.id)
-    setGame(g)
+    const host = canvasHostRef.current
+    if (!host) return undefined
+    const g = createLobbyGame(host, socket, socket.id)
     return () => {
       g.scene.getScene('Lobby')?.dispose?.()
       g.destroy(true)
@@ -15,7 +35,7 @@ export default function LobbyPage({ socket, username, players, serverError, queu
   }, [socket])
 
   return (
-    <div className="landing">
+    <div className="landing lobby-page">
       <header className="topbar">
         <span className="logo-dot" aria-hidden="true" />
         <span className="logo-text">BRIDGE THE GAP</span>
@@ -27,28 +47,27 @@ export default function LobbyPage({ socket, username, players, serverError, queu
           <p className="lobby-sub">
             Welcome, <span className="lobby-you">{username}</span>. Walk around — WASD / arrows.
           </p>
-          {serverError && <p className="form-msg error">{serverError}</p>}
+          {serverError && (
+            <p className="form-msg error" role="alert">
+              {serverError}
+            </p>
+          )}
         </div>
 
         <div className="lobby-layout">
+          {/* Empty until Phaser mounts its canvas; CSS shows "Loading plaza…" via :empty */}
           <div className="plaza" ref={canvasHostRef} />
 
           <aside className="lobby-panel">
             <h2 className="lobby-count">
               PLAYERS <span className="lobby-badge">{players.length}</span>
             </h2>
-            <ul className="lobby-list">
-              {players.map((player) => (
-                <li key={player.id} className={player.name === username ? 'is-you' : ''}>
-                  <span className="lobby-pip" aria-hidden="true" />
-                  {player.name}
-                  {player.name === username && <span className="you-tag">YOU</span>}
-                </li>
-              ))}
-            </ul>
-            <p className="lobby-wait">{queued ? 'Finding an opponent…' : 'Click Play Game to get paired.'}</p>
+            <PlayerList players={players} username={username} />
+            <p className={queued ? 'lobby-wait is-queued' : 'lobby-wait'} role="status" aria-live="polite">
+              {queued ? 'Finding an opponent…' : 'Click Play Game to get paired.'}
+            </p>
             <div className="lobby-actions">
-              <button className="enter-btn" type="button" onClick={onPlay} disabled={queued}>
+              <button className="enter-btn" type="button" onClick={onPlay} disabled={queued} aria-busy={queued}>
                 {queued ? 'QUEUED…' : 'PLAY GAME'}
               </button>
               <button className="leave-btn" type="button" onClick={onLeave}>
@@ -57,7 +76,6 @@ export default function LobbyPage({ socket, username, players, serverError, queu
             </div>
           </aside>
         </div>
-        {game === null && <p className="lobby-wait">Loading plaza…</p>}
       </main>
 
       <footer className="footer">A cozy pixel debate game · hackathon build</footer>
