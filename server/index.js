@@ -17,7 +17,7 @@ const io = new Server(server, {
 })
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', app: 'bridge-the-gap', uptime: process.uptime() })
+  res.json({ status: 'ok', app: 'bridge-the-gap', uptime: process.uptime(), disagreementReasons: true })
 })
 
 // socket.id -> { name, x, y }
@@ -174,6 +174,20 @@ io.on('connection', (socket) => {
     if (agree) m.planks += 1
     m.disagreement = agree ? null : { byId: socket.id, text: reason }
 
+    if (!agree) {
+      console.log(`match ${m.id}: ${nameOf(socket.id)} disagreed — "${reason}"`)
+      // Dedicated event (sent BEFORE the state update) so both clients get the
+      // reason even if the front-end only forwards part of game:state.
+      for (const id of [m.a, m.b]) {
+        io.sockets.sockets.get(id)?.emit('game:disagreement', {
+          matchId: m.id,
+          byId: socket.id,
+          byName: nameOf(socket.id),
+          text: reason,
+        })
+      }
+    }
+
     // roles swap either way: the responder now argues (counter on disagree)
     const prev = m.speaker
     m.speaker = m.responder
@@ -206,5 +220,5 @@ io.on('connection', (socket) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`Bridge the Gap server listening on http://localhost:${PORT}`)
+  console.log(`Bridge the Gap server (disagreement reasons: ON) listening on http://localhost:${PORT}`)
 })

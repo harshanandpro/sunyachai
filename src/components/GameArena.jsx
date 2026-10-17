@@ -144,8 +144,17 @@ export default function GameArena({
   // Last rejected point + the reason the disagreeing player gave
   const lastDisagreement = isControlled ? (game?.disagreement ?? null) : localDisagreement
 
+  // Reason entries live in the transcript too, so numbering only counts real points
+  const pointCount = transcript.filter((e) => e.kind !== 'disagreement').length
+
   // Automatic transcript capture for live server matches
   const prevArgRef = useRef(null)
+  // Reason this client just submitted — fallback so the log still gets the entry
+  // even if the server's game:state doesn't echo `disagreement`
+  const myReasonRef = useRef(null)
+  const transcriptListRef = useRef(null)
+  // Reason delivered by the dedicated `game:disagreement` socket event
+  const eventDisRef = useRef(null)
   const prevPlanksRef = useRef(planks)
   const prevPhaseRef = useRef(phase)
 
@@ -164,7 +173,7 @@ export default function GameArena({
         author: isSpeaker ? 'p1' : 'p2',
         text: currentArgText,
         status: 'pending',
-        timestamp: `Point #${transcript.length + 1}`,
+        timestamp: `Point #${pointCount + 1}`,
       }
       setTranscript((prev) => [...prev, newEntry])
     }
@@ -173,18 +182,48 @@ export default function GameArena({
       prevArgRef.current = null
     }
 
-    // When leaving 'decide' phase, update the pending round to agreed or disagreed
-    // (a disagreement also records the reason the responder gave)
+    // When leaving 'decide' phase, update the pending round to agreed or disagreed.
+    // A disagreement also adds the responder's reason as its own log entry.
     if (prevPhaseRef.current === 'decide' && phase !== 'decide') {
       const agreed = planks > prevPlanksRef.current
-      const reason = agreed ? undefined : game?.disagreement?.text
-      setTranscript((prev) =>
-        prev.map((entry, idx) =>
+      const dis = game?.disagreement ?? eventDisRef.current
+      eventDisRef.current = null
+      const reasonText = dis?.text ?? myReasonRef.current
+      myReasonRef.current = null
+      setTranscript((prev) => {
+        const next = prev.map((entry, idx) =>
           idx === prev.length - 1 && entry.status === 'pending'
-            ? { ...entry, status: agreed ? 'agreed' : 'disagreed', reason }
+            ? { ...entry, status: agreed ? 'agreed' : 'disagreed' }
             : entry
         )
-      )
+        if (!agreed && reasonText) {
+          next.push({
+            id: Date.now() + 1,
+            kind: 'disagreement',
+            authorName: dis ? dis.byName : p1.name,
+            author: dis ? (dis.byId === game?.you?.id ? 'p1' : 'p2') : 'p1',
+            text: reasonText,
+            status: 'disagreed',
+            timestamp: 'Reason',
+          })
+        } else if (!agreed && game?.partner && game.speakerId === game.partner.id) {
+          // Partner disagreed but the server sent no reason (server not updated):
+          // still log the disagreement so both transcripts stay in sync.
+          next.push({
+            id: Date.now() + 1,
+            kind: 'disagreement',
+            authorName: game.partner.name,
+            author: 'p2',
+            text: 'Disagreed with this point. (No reason received from the server.)',
+            status: 'disagreed',
+            timestamp: 'Reason',
+          })
+          console.warn(
+            '[GameArena] game:state had no `disagreement` field — update the server so both players see the reason.'
+          )
+        }
+        return next
+      })
     }
 
     if (isControlled && game && planks > prevPlanksRef.current) {
@@ -195,6 +234,23 @@ export default function GameArena({
     prevPlanksRef.current = planks
     prevPhaseRef.current = phase
   }, [isControlled, currentArgText, planks, phase, game, isSpeaker, p1.name, p2.name, transcript.length])
+
+  // Listen for the dedicated disagreement event straight from the socket, so the
+  // reason reaches BOTH players regardless of what the parent forwards in `game`
+  useEffect(() => {
+    if (!socket) return undefined
+    const onDisagreement = (payload) => {
+      eventDisRef.current = payload
+    }
+    socket.on('game:disagreement', onDisagreement)
+    return () => socket.off('game:disagreement', onDisagreement)
+  }, [socket])
+
+  // Keep the newest transcript entry (e.g. a disagreement reason) in view
+  useEffect(() => {
+    const el = transcriptListRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [transcript.length])
 
   // Handlers
   function handleAgree() {
@@ -243,6 +299,8 @@ export default function GameArena({
       return
     }
 
+    myReasonRef.current = reason
+
     if (onDisagree) {
       onDisagree(reason)
     } else if (onDecision) {
@@ -252,9 +310,18 @@ export default function GameArena({
     }
 
     if (!isControlled) {
-      setTranscript((prev) =>
-        prev.map((item, idx) => (idx === prev.length - 1 ? { ...item, status: 'disagreed', reason } : item))
-      )
+      setTranscript((prev) => [
+        ...prev.map((item, idx) => (idx === prev.length - 1 ? { ...item, status: 'disagreed' } : item)),
+        {
+          id: Date.now() + 1,
+          kind: 'disagreement',
+          authorName: p2.name,
+          author: 'p2',
+          text: reason,
+          status: 'disagreed',
+          timestamp: 'Reason',
+        },
+      ])
       setLocalDisagreement({ byName: p2.name, text: reason })
       setLocalPhase('argue')
       setLocalTurn((prev) => (prev === 'p1' ? 'p2' : 'p1'))
@@ -287,7 +354,7 @@ export default function GameArena({
         author: localTurn,
         text: trimmed,
         status: 'pending',
-        timestamp: `Round ${transcript.length + 1}`,
+        timestamp: `Round ${pointCount + 1}`,
       }
       setTranscript((prev) => [...prev, newEntry])
       setLocalCurrentArg(trimmed)
@@ -779,29 +846,32 @@ export default function GameArena({
       {/* Collapsible Debate Log / Transcript */}
       <details className="arena-transcript-details" open={transcript.length > 0}>
         <summary className="transcript-summary">
-          <span>📜 Debate Transcript ({transcript.length} points recorded)</span>
+          <span>📜 Debate Transcript ({transcript.length} entries)</span>
         </summary>
-        <div className="transcript-list">
+        <div className="transcript-list" ref={transcriptListRef}>
           {transcript.length === 0 ? (
             <p className="transcript-empty">No debate points logged yet.</p>
           ) : (
             transcript.map((item) => (
               <div
                 key={item.id}
-                className={`transcript-item ${item.author === 'p1' ? 'transcript-p1' : 'transcript-p2'}`}
+                className={`transcript-item ${item.author === 'p1' ? 'transcript-p1' : 'transcript-p2'}${
+                  item.kind === 'disagreement' ? ' transcript-disagreement' : ''
+                }`}
               >
                 <div className="transcript-meta">
                   <strong>{item.authorName}</strong> · <span>{item.timestamp}</span> ·{' '}
                   <span className={`status-badge status-${item.status}`}>
-                    {item.status === 'agreed' ? '🤝 AGREED (+1 PLANK)' : item.status === 'disagreed' ? '⚡ DISAGREED' : '⏳ ACTIVE'}
+                    {item.kind === 'disagreement'
+                      ? '⚡ DISAGREED BECAUSE'
+                      : item.status === 'agreed'
+                        ? '🤝 AGREED (+1 PLANK)'
+                        : item.status === 'disagreed'
+                          ? '⚡ DISAGREED'
+                          : '⏳ ACTIVE'}
                   </span>
                 </div>
                 <p className="transcript-text">{item.text}</p>
-                {item.reason && (
-                  <p className="transcript-reason">
-                    <strong>Reason given:</strong> {item.reason}
-                  </p>
-                )}
               </div>
             ))
           )}
