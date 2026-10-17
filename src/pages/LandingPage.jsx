@@ -7,27 +7,23 @@ const HOW_IT_WORKS = [
   { icon: '🌉', title: 'Build', text: 'Common ground becomes planks — plank by plank, you cross together.' },
 ]
 
-export default function LandingPage() {
+export default function LandingPage({ onEnter }) {
   const [username, setUsername] = useState('')
   const [error, setError] = useState('')
-  const [readyPlayer, setReadyPlayer] = useState('')
 
   function handleSubmit(e) {
     e.preventDefault()
     const name = username.trim()
     if (name.length < 2) {
       setError('Name needs at least 2 characters.')
-      setReadyPlayer('')
       return
     }
     if (name.length > 16) {
       setError('Keep it under 16 characters.')
-      setReadyPlayer('')
       return
     }
     setError('')
-    // Lobby comes in the next step; for now just prepare the player.
-    setReadyPlayer(name)
+    onEnter(name)
   }
 
   return (
@@ -65,9 +61,6 @@ export default function LandingPage() {
             </button>
           </div>
           {error && <p className="form-msg error">{error}</p>}
-          {readyPlayer && (
-            <p className="form-msg ready">✔ {readyPlayer} is ready — the lobby opens next.</p>
-          )}
         </form>
 
         <section className="how">

@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
-import BootScene from './scenes/BootScene.js'
+import LobbyScene from './scenes/LobbyScene.js'
 
-export function createBridgeGame(parent) {
+export function createLobbyGame(parent, socket, myId) {
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent,
@@ -9,6 +9,16 @@ export function createBridgeGame(parent) {
     height: 540,
     pixelArt: true,
     backgroundColor: '#0a0f24',
-    scene: [BootScene],
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [LobbyScene],
+    callbacks: {
+      preBoot: (game) => {
+        game.registry.set('socket', socket)
+        game.registry.set('myId', myId)
+      },
+    },
   })
 }
