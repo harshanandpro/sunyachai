@@ -7,6 +7,9 @@ const PORT = Number(process.env.PORT) || 3001
 // plaza bounds (must match the Phaser scene)
 const BOUNDS = { left: 60, right: 900, top: 80, bottom: 470 }
 
+// minimum characters for a disagreement reason (keep in sync with GameArena.jsx)
+const MIN_REASON = 5
+
 const app = express()
 const server = http.createServer(app)
 const io = new Server(server, {
@@ -78,6 +81,14 @@ function broadcastState(m) {
       responderId: m.responder,
       you: { id, name: nameOf(id) },
       partner: { id: partnerId, name: nameOf(partnerId) },
+      // last rejected point: who disagreed and the reason they gave (null after an agree)
+      disagreement: m.disagreement
+        ? {
+            byId: m.disagreement.byId,
+            byName: nameOf(m.disagreement.byId),
+            text: m.disagreement.text,
+          }
+        : null,
     })
   }
 }
@@ -128,6 +139,7 @@ io.on('connection', (socket) => {
         planks: 0,
         phase: 'argue',
         argument: null,
+        disagreement: null,
         speaker: a,
         responder: b,
       }
@@ -150,7 +162,18 @@ io.on('connection', (socket) => {
   socket.on('game:decision', (payload) => {
     const m = matchOf(socket.id)
     if (!m || m.phase !== 'decide' || m.responder !== socket.id) return
-    if (payload?.agree === true) m.planks += 1
+
+    const agree = payload?.agree === true
+    let reason = ''
+    if (!agree) {
+      // disagreeing requires a real reason — reject silently otherwise
+      reason = typeof payload?.reason === 'string' ? payload.reason.trim().slice(0, 600) : ''
+      if (reason.length < MIN_REASON) return
+    }
+
+    if (agree) m.planks += 1
+    m.disagreement = agree ? null : { byId: socket.id, text: reason }
+
     // roles swap either way: the responder now argues (counter on disagree)
     const prev = m.speaker
     m.speaker = m.responder

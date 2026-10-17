@@ -17,7 +17,8 @@ import './GameArena.css'
  * ```
  *
  * Granular Props API (all optional, falls back to standalone demo mode):
- * @param {object} [game] - Server match state: { motion, planks, phase, argument, speakerId, responderId, you, partner }
+ * @param {object} [game] - Server match state: { motion, planks, phase, argument, speakerId, responderId, you, partner, disagreement }
+ *                          disagreement = { byId, byName, text } | null  (the last rejected point + the reason given)
  * @param {object} [socket] - Socket.IO client (auto-wires game:argument, game:decision, game:leave)
  * @param {string} [topic] - Debate motion/topic (fallback if game.motion is omitted)
  * @param {number} [plankCount] - Controlled number of built planks (0-10)
@@ -29,13 +30,14 @@ import './GameArena.css'
  * @param {object} [player2] - { id, name, role } (Right island / Amber)
  * @param {function} [onSubmitArgument] - Callback (text: string) => void
  * @param {function} [onAgree] - Callback () => void
- * @param {function} [onDisagree] - Callback () => void
- * @param {function} [onDecision] - Callback (agree: boolean) => void
+ * @param {function} [onDisagree] - Callback (reason: string) => void   (a reason is now required)
+ * @param {function} [onDecision] - Callback (agree: boolean, reason?: string) => void
  * @param {function} [onLeave] - Callback () => void (forfeit or return to lobby)
  * @param {function} [onReset] - Callback () => void (reset demo state)
  */
 
 const TOTAL_PLANKS = 10
+const MIN_REASON = 5 // keep in sync with the server
 const DEFAULT_TOPIC = 'Can AI and humans collaborate as genuine creative peers?'
 const DEFAULT_P1 = { id: 'p1', name: 'Atlas', role: 'Speaker' }
 const DEFAULT_P2 = { id: 'p2', name: 'Nova', role: 'Responder' }
@@ -95,8 +97,13 @@ export default function GameArena({
   const [localCurrentArg, setLocalCurrentArg] = useState(
     'What if we treat AI not as a shortcut, but as a dynamic sparring partner that questions our biases?'
   )
+  const [localDisagreement, setLocalDisagreement] = useState(null)
   const [inputText, setInputText] = useState('')
   const [feedback, setFeedback] = useState('')
+  // Disagree flow: clicking DISAGREE opens a reason form; nothing is sent until a reason is given
+  const [disagreeing, setDisagreeing] = useState(false)
+  const [reasonText, setReasonText] = useState('')
+  const [reasonError, setReasonError] = useState('')
   const [transcript, setTranscript] = useState(() => (isControlled ? [] : MOCK_INITIAL_TRANSCRIPT))
   // Per-player tallies (controlled mode): the server swaps roles after every
   // decision, so the speaker in the state AFTER a decision is the player who
@@ -134,6 +141,9 @@ export default function GameArena({
     ? (game ? game.argument : propArgument)
     : localCurrentArg
 
+  // Last rejected point + the reason the disagreeing player gave
+  const lastDisagreement = isControlled ? (game?.disagreement ?? null) : localDisagreement
+
   // Automatic transcript capture for live server matches
   const prevArgRef = useRef(null)
   const prevPlanksRef = useRef(planks)
@@ -164,12 +174,14 @@ export default function GameArena({
     }
 
     // When leaving 'decide' phase, update the pending round to agreed or disagreed
+    // (a disagreement also records the reason the responder gave)
     if (prevPhaseRef.current === 'decide' && phase !== 'decide') {
       const agreed = planks > prevPlanksRef.current
+      const reason = agreed ? undefined : game?.disagreement?.text
       setTranscript((prev) =>
         prev.map((entry, idx) =>
           idx === prev.length - 1 && entry.status === 'pending'
-            ? { ...entry, status: agreed ? 'agreed' : 'disagreed' }
+            ? { ...entry, status: agreed ? 'agreed' : 'disagreed', reason }
             : entry
         )
       )
@@ -205,28 +217,52 @@ export default function GameArena({
       setLocalPhase(nextPlanks >= TOTAL_PLANKS ? 'won' : 'argue')
       setLocalTurn((prev) => (prev === 'p1' ? 'p2' : 'p1'))
       setLocalCurrentArg(null)
+      setLocalDisagreement(null)
       setFeedback('🤝 Common ground agreed! +1 plank added to the bridge.')
     }
   }
 
+  // Step 1: DISAGREE only opens the reason form — nothing is sent yet.
   function handleDisagree() {
+    setReasonError('')
+    setDisagreeing(true)
+  }
+
+  function handleCancelReason() {
+    setDisagreeing(false)
+    setReasonText('')
+    setReasonError('')
+  }
+
+  // Step 2: the disagreement is sent together with the required reason.
+  function handleSubmitReason(e) {
+    e.preventDefault()
+    const reason = reasonText.trim()
+    if (reason.length < MIN_REASON) {
+      setReasonError(`Explain why you disagree (at least ${MIN_REASON} characters).`)
+      return
+    }
+
     if (onDisagree) {
-      onDisagree()
+      onDisagree(reason)
     } else if (onDecision) {
-      onDecision(false)
+      onDecision(false, reason)
     } else if (socket) {
-      socket.emit('game:decision', { agree: false })
+      socket.emit('game:decision', { agree: false, reason })
     }
 
     if (!isControlled) {
       setTranscript((prev) =>
-        prev.map((item, idx) => (idx === prev.length - 1 ? { ...item, status: 'disagreed' } : item))
+        prev.map((item, idx) => (idx === prev.length - 1 ? { ...item, status: 'disagreed', reason } : item))
       )
+      setLocalDisagreement({ byName: p2.name, text: reason })
       setLocalPhase('argue')
       setLocalTurn((prev) => (prev === 'p1' ? 'p2' : 'p1'))
       setLocalCurrentArg(null)
       setFeedback('⚡ Point challenged! Turn passed to argue the counter-perspective.')
     }
+
+    handleCancelReason()
   }
 
   function handleSubmit(e) {
@@ -280,8 +316,10 @@ export default function GameArena({
       setLocalCurrentArg(
         'What if we treat AI not as a shortcut, but as a dynamic sparring partner that questions our biases?'
       )
+      setLocalDisagreement(null)
       setTranscript(MOCK_INITIAL_TRANSCRIPT)
       setInputText('')
+      handleCancelReason()
       setFeedback('Arena reset to default mock state.')
     }
   }
@@ -612,29 +650,67 @@ export default function GameArena({
 
               {/* Responder Controls (Agree / Disagree available ONLY to the responder) */}
               {isResponder ? (
-                <div className="responder-actions-wrap">
-                  <p className="responder-prompt">
-                    Do you agree this represents valid common ground?
-                  </p>
-                  <div className="action-button-row">
-                    <button
-                      type="button"
-                      className="arena-btn btn-agree"
-                      onClick={handleAgree}
-                      title="Agree with this point to place a plank"
-                    >
-                      🤝 AGREE (+1 PLANK)
-                    </button>
-                    <button
-                      type="button"
-                      className="arena-btn btn-disagree"
-                      onClick={handleDisagree}
-                      title="Disagree and prepare a counter-perspective"
-                    >
-                      ⚡ DISAGREE (REBUT)
-                    </button>
+                disagreeing ? (
+                  /* Disagreeing requires a reason */
+                  <form className="reason-form" onSubmit={handleSubmitReason}>
+                    <label htmlFor="arena-reason-input" className="responder-prompt">
+                      WHY DO YOU DISAGREE? A REASON IS REQUIRED.
+                    </label>
+                    <input
+                      id="arena-reason-input"
+                      type="text"
+                      className="arena-input"
+                      value={reasonText}
+                      onChange={(e) => {
+                        setReasonText(e.target.value)
+                        if (reasonError) setReasonError('')
+                      }}
+                      placeholder="Explain what you see differently..."
+                      maxLength={600}
+                      autoComplete="off"
+                      autoFocus
+                      aria-invalid={reasonError ? 'true' : undefined}
+                      aria-describedby={reasonError ? 'arena-reason-error' : undefined}
+                    />
+                    {reasonError && (
+                      <p id="arena-reason-error" className="reason-error" role="alert">
+                        {reasonError}
+                      </p>
+                    )}
+                    <div className="action-button-row">
+                      <button type="submit" className="arena-btn btn-disagree">
+                        ⚡ SEND REASON &amp; REBUT
+                      </button>
+                      <button type="button" className="arena-btn btn-cancel" onClick={handleCancelReason}>
+                        BACK
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="responder-actions-wrap">
+                    <p className="responder-prompt">
+                      Do you agree this represents valid common ground?
+                    </p>
+                    <div className="action-button-row">
+                      <button
+                        type="button"
+                        className="arena-btn btn-agree"
+                        onClick={handleAgree}
+                        title="Agree with this point to place a plank"
+                      >
+                        🤝 AGREE (+1 PLANK)
+                      </button>
+                      <button
+                        type="button"
+                        className="arena-btn btn-disagree"
+                        onClick={handleDisagree}
+                        title="Disagree — you'll be asked to give a reason"
+                      >
+                        ⚡ DISAGREE (REBUT)
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )
               ) : (
                 /* Speaker Waiting Notice (Agree/Disagree hidden from speaker) */
                 <div className="arena-waiting-box">
@@ -650,6 +726,14 @@ export default function GameArena({
           {/* Phase: ARGUE */}
           {phase === 'argue' && (
             <section className="debate-input-section">
+              {/* Why the last point was rejected — visible to both players */}
+              {lastDisagreement && (
+                <div className="disagreement-note" role="note">
+                  <span className="disagreement-tag">⚡ {lastDisagreement.byName} DISAGREED BECAUSE</span>
+                  <p className="disagreement-text">&ldquo;{lastDisagreement.text}&rdquo;</p>
+                </div>
+              )}
+
               {isSpeaker ? (
                 /* Speaker Input Form */
                 <form className="argument-form" onSubmit={handleSubmit}>
@@ -713,6 +797,11 @@ export default function GameArena({
                   </span>
                 </div>
                 <p className="transcript-text">{item.text}</p>
+                {item.reason && (
+                  <p className="transcript-reason">
+                    <strong>Reason given:</strong> {item.reason}
+                  </p>
+                )}
               </div>
             ))
           )}

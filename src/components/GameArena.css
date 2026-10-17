@@ -1009,6 +1009,70 @@
   margin-bottom: 6px;
 }
 
+/* ───────── Disagree flow: required reason ───────── */
+.reason-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reason-error {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #ffadad;
+  background: rgba(214, 69, 69, 0.14);
+  box-shadow: inset 4px 0 0 0 var(--ga-red);
+}
+
+.btn-cancel {
+  --ledge: #1f2a3a;
+  background: #2b3a4f;
+  color: #cfe0ff;
+}
+
+/* shows both players why the last point was rejected */
+.disagreement-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(90deg, rgba(214, 69, 69, 0.14), transparent 60%),
+    var(--ga-well);
+  box-shadow: inset 5px 0 0 0 var(--ga-red), 0 0 0 2px #3a1a22;
+  animation: itemIn 0.25s steps(4);
+}
+
+.disagreement-tag {
+  font-family: var(--ga-pixel);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #ff9d9d;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.disagreement-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #fff;
+}
+
+.transcript-reason {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #ffc9c9;
+  background: rgba(214, 69, 69, 0.1);
+  box-shadow: inset 3px 0 0 0 var(--ga-red);
+}
+
+.transcript-reason strong {
+  color: #ff9d9d;
+}
+
 /* ───────── Responsive ───────── */
 @media (max-width: 768px) {
   .game-arena {
